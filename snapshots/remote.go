@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/containerd/containerd/content"
+	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/images"
 	"github.com/containerd/containerd/remotes"
 	"github.com/opencontainers/go-digest"
@@ -33,9 +34,9 @@ import (
 )
 
 const (
-	RemoteSnapshotLabel string = "containerd.io/snapshot/remote_snapshot"
-	RemoteRefLabel      string = "containerd.io/snapshot/remote_snapshot/ref"
-	RemoteDigestLabel   string = "containerd.io/snapshot/remote_snapshot/digest"
+	RemoteSnapshotLabel = "containerd.io/snapshot.ref"
+	RemoteRefLabel      = "containerd.io/snapshot/remote_snapshot/ref"
+	RemoteDigestLabel   = "containerd.io/snapshot/remote_snapshot/digest"
 )
 
 // FilterLayerBySnapshotter filters out layers from download candidates if we
@@ -97,100 +98,50 @@ func createRemoteChain(ctx context.Context, layers []ocispec.Descriptor, diffIDs
 		return append(necessary, layers[len(layers)-1]), chainID, false
 	}
 
-	if info, err := sn.Stat(ctx, chainID); err == nil {
-
-		// The snapshot is applied a special label "RemoteSnapshotLabel".
-		// This label is automatically applied by the remote snapshotter
-		// if the snapshot is a remote snapshot.
-		if _, ok := info.Labels[RemoteSnapshotLabel]; ok {
-
-			// Snapshotter is remote snapshotter and the remote
-			// snapshot already exists. We avoid to download it.
-			return necessary, chainID, true
-		}
-
-		// Snapshotter is not a remote snapshotter or the snapshot
-		// isn't remote snapshot. We need to fetch all layers above.
-		return append(necessary, layers[len(layers)-1]), chainID, false
-	}
-
-	// We got error during Stat(), so the snapshot hasn't been made yet.
-	//
-	// Following cases are possible:
-	// A. Snapshotter is a remote snapshotter and the layer is a remote
-	//    layer.
-	// B. Snapshotter is a remote snapshotter and the layer isn't a remote
-	//    layer.
-	// C. Snapshotter is a normal snapshotter.
-	//
-	// Only in the case of A, we want the remote snapshotter to make the
-	// remote snapshot NOW and skip downloading the layer by filter out the
-	// layer. To achive that, we need to:
-	// 1. know that the underlyeing snapshotter is a remote snapshotter, and
-	// 2. make the remote snapshot NOW if the layer is a remote layer.
-	//
-	// We acheve that by using Prepare(), Stat() and Commit() with special
-	// labels.
-	// The reason why we manually invoke Prepare() and Commit() is we want
-	// containerd to recognise proper metadata which is binded to the
-	// current namespace. It can't be achived with automatic snapshot
-	// generation in the remote snapshotter internally.
-
-	// 1. Prepare()ing a snapshot with passing basic information about this
-	//    layer (ref and layer digest) as labels. Remote snapshotters MUST
-	//    recognise these labels and MUST check if the layer is a remote
-	//    layer. If the remote snapshot exists, remote snapshotter MUST
-	//    prepare the active snapshot WITH automatically applying a label
-	//    "RemoteSnapshotLabel".
+	// Prepare()ing a snapshot with a special label RemoteSnapshotLabel and
+	// some basic information of the layer (ref and layer digest). Remote
+	// snapshotters MUST recognise these labels and MUST check if the layer is
+	// a remote layer. If the remote snapshot exists, remote snapshotter MUST
+	// prepare and commit(internally) the remote snapshot WITH "RemoteSnapshotLabel"
+	// then MUST return ErrAlreadyExists. Metadata snapshotter recognizes this label
+	// and this error and can deal with this automatically-committed remote snapshot
+	// correctly as a committed snapshot.
 	remoteOpt := WithLabels(map[string]string{
-		RemoteRefLabel:    ref,
-		RemoteDigestLabel: layers[len(layers)-1].Digest.String(),
+		RemoteSnapshotLabel: chainID,
+		RemoteRefLabel:      ref,
+		RemoteDigestLabel:   layers[len(layers)-1].Digest.String(),
 	})
-	key := fmt.Sprintf("remote-%s %s", uniquePart(), chainID)
-	if _, err := sn.Prepare(ctx, key, parentID, remoteOpt); err == nil {
+	key := getUniqueKey(ctx, sn, chainID)
+	if _, err := sn.Prepare(ctx, key, parentID, remoteOpt); errdefs.IsAlreadyExists(err) {
 
-		// 2. Then we Stat() the prepared active snapshot. If the active
-		//    snapshot has a RemoteSnapshotLabel, it means we are in the case of
-		//    A(mentioned above). So we can safely Commit() the remote snapshot
-		//    without any opration on the active snapshot and skip downloading
-		//    this layer.
-		//    Through these steps, we don't explicitly apply RemoteSnapshotLabels
-		//    to any snapshots. This label is applied only in the remote
-		//    snapshotter fully automatically. So we can use this label to know
-		//    that the underlying snapshotters is a remote snapshotters or not.
-		if info, err := sn.Stat(ctx, key); err == nil {
-			if _, ok := info.Labels[RemoteSnapshotLabel]; ok {
-
-				// 3. The remote snapshot has a label RemoteSnapshotLabel which
-				//    we haven't applied above, it means the snapshotter is a remote
-				//    snapshotter and this layer is a remote layer. So we don't do
-				//    any operation on the active snapshot and simply Commit() it.
-				//    When Commit()-ing a remote snapshot, remote snapshotter MUST
-				//    recognise RemoteSnapshotLabel applied to the corresponding active
-				//    snapshot and MUST apply the RemoteSnapshotLabel to the
-				//    corresponding commiting snapshot automatically.
-				if err := sn.Commit(ctx, chainID, key); err == nil {
-
-					// We succeeded to Commit() the remote snapshot.
-					// Now, we can safely skip to download the layer.
-					return necessary, chainID, true
-				}
+		// Check if the snapshot is a remote snapshot. If the snapshot has a RemoteSnapshotLabel,
+		// this is a remote snapshot and we can skip downloading this layer.
+		if info, err := sn.Stat(ctx, chainID); err == nil {
+			if target, ok := info.Labels[RemoteSnapshotLabel]; ok && target == chainID {
+				return necessary, chainID, true
 			}
 		}
 	}
 
-	// We failed to make the remote snapshotter, so we treat this layer as a
-	// normal way.
+	// Failed to prepare the remote snapshotter. So we treat this layer as a normal way.
 	sn.Remove(ctx, key)
 	return append(necessary, layers[len(layers)-1]), chainID, false
 }
 
-func uniquePart() string {
-	t := time.Now()
-	var b [3]byte
-	// Ignore read failures, just decreases uniqueness
-	rand.Read(b[:])
-	return fmt.Sprintf("%d-%s", t.Nanosecond(), base64.URLEncoding.EncodeToString(b[:]))
+func getUniqueKey(ctx context.Context, sn Snapshotter, chainID string) (key string) {
+	for {
+		t := time.Now()
+		var b [3]byte
+		// Ignore read failures, just decreases uniqueness
+		rand.Read(b[:])
+		uniquePart := fmt.Sprintf("%d-%s", t.Nanosecond(), base64.URLEncoding.EncodeToString(b[:]))
+		key = fmt.Sprintf("remote-%s %s", uniquePart, chainID)
+		if _, err := sn.Stat(ctx, key); err == nil {
+			continue
+		}
+		break
+	}
+	return
 }
 
 func exclude(a []ocispec.Descriptor, b []ocispec.Descriptor) []ocispec.Descriptor {

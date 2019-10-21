@@ -37,7 +37,7 @@ import (
 
 const (
 	inheritedLabelsPrefix = "containerd.io/snapshot/"
-	labelSnapshotRef      = "containerd.io/snapshot.ref"
+	labelSnapshotRef      = snapshots.RemoteSnapshotLabel
 )
 
 type snapshotter struct {
