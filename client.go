@@ -342,6 +342,9 @@ type RemoteContext struct {
 
 	// AllMetadata downloads all manifests and known-configuration files
 	AllMetadata bool
+
+	// SkipDownloadForExistingSnapshot skips downloading layers existing as remote snapshots
+	SkipDownloadForExistingSnapshot bool
 }
 
 func defaultRemoteContext() *RemoteContext {

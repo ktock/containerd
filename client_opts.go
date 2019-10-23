@@ -211,3 +211,11 @@ func WithAllMetadata() RemoteOpt {
 		return nil
 	}
 }
+
+// WithSkipDownloadForExistingSnapshot skip downloading layers existing as remote snapshots
+func WithSkipDownloadForExistingSnapshot() RemoteOpt {
+	return func(_ *Client, c *RemoteContext) error {
+		c.SkipDownloadForExistingSnapshot = true
+		return nil
+	}
+}

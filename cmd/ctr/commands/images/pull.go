@@ -57,6 +57,10 @@ command. As part of this process, we do the following:
 			Name:  "all-metadata",
 			Usage: "Pull metadata for all platforms",
 		},
+		cli.BoolFlag{
+			Name:  "remote-snapshot",
+			Usage: "Skip downloading layers existing as remote snapshots",
+		},
 	),
 	Action: func(context *cli.Context) error {
 		var (
