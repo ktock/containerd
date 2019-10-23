@@ -198,12 +198,6 @@ func populateDefaultUnixSpec(ctx context.Context, s *Spec, id string) error {
 				Source:      "sysfs",
 				Options:     []string{"nosuid", "noexec", "nodev", "ro"},
 			},
-			{
-				Destination: "/run",
-				Type:        "tmpfs",
-				Source:      "tmpfs",
-				Options:     []string{"nosuid", "strictatime", "mode=755", "size=65536k"},
-			},
 		},
 		Linux: &specs.Linux{
 			MaskedPaths: []string{
