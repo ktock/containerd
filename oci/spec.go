@@ -153,13 +153,13 @@ func populateDefaultUnixSpec(ctx context.Context, s *Spec, id string) error {
 				Inheritable: defaultUnixCaps(),
 				Effective:   defaultUnixCaps(),
 			},
-			Rlimits: []specs.POSIXRlimit{
-				{
-					Type: "RLIMIT_NOFILE",
-					Hard: uint64(1024),
-					Soft: uint64(1024),
-				},
-			},
+			// Rlimits: []specs.POSIXRlimit{
+			// 	{
+			// 		Type: "RLIMIT_NOFILE",
+			// 		Hard: uint64(1024),
+			// 		Soft: uint64(1024),
+			// 	},
+			// },
 		},
 		Mounts: []specs.Mount{
 			{
