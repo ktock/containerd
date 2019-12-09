@@ -89,7 +89,7 @@ Most of this is experimental and there are few leaps to make this work.`,
 			return err
 		}
 
-		_, err = Fetch(ctx, client, ref, config)
+		err = Fetch(ctx, client, ref, config)
 		return err
 	},
 }
@@ -108,6 +108,8 @@ type FetchConfig struct {
 	Platforms []string
 	// Whether or not download all metadata
 	AllMetadata bool
+	// Snapshotter
+	Snapshotter string
 }
 
 // NewFetchConfig returns the default FetchConfig from cli flags
@@ -139,11 +141,15 @@ func NewFetchConfig(ctx context.Context, clicontext *cli.Context) (*FetchConfig,
 		config.AllMetadata = true
 	}
 
+	if clicontext.String("snapshotter") != "" {
+		config.Snapshotter = clicontext.String("snapshotter")
+	}
+
 	return config, nil
 }
 
 // Fetch loads all resources into the content store and returns the image
-func Fetch(ctx context.Context, client *containerd.Client, ref string, config *FetchConfig) (images.Image, error) {
+func Fetch(ctx context.Context, client *containerd.Client, ref string, config *FetchConfig) error {
 	ongoing := newJobs(ref)
 
 	pctx, stopProgress := context.WithCancel(ctx)
@@ -170,7 +176,12 @@ func Fetch(ctx context.Context, client *containerd.Client, ref string, config *F
 		containerd.WithPullLabels(labels),
 		containerd.WithResolver(config.Resolver),
 		containerd.WithImageHandler(h),
+		containerd.WithPullUnpack,
 		containerd.WithSchema1Conversion,
+	}
+
+	if config.Snapshotter != "" {
+		opts = append(opts, containerd.WithPullSnapshotter(config.Snapshotter))
 	}
 
 	if config.AllMetadata {
@@ -185,14 +196,14 @@ func Fetch(ctx context.Context, client *containerd.Client, ref string, config *F
 		}
 	}
 
-	img, err := client.Fetch(pctx, ref, opts...)
+	_, err := client.Pull(pctx, ref, opts...)
 	stopProgress()
 	if err != nil {
-		return images.Image{}, err
+		return err
 	}
 
 	<-progress
-	return img, nil
+	return nil
 }
 
 func showProgress(ctx context.Context, ongoing *jobs, cs content.Store, out io.Writer) {

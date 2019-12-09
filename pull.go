@@ -25,6 +25,7 @@ import (
 	"github.com/containerd/containerd/remotes"
 	"github.com/containerd/containerd/remotes/docker"
 	"github.com/containerd/containerd/remotes/docker/schema1"
+	snhandler "github.com/containerd/containerd/snapshots/handler"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
 	"golang.org/x/sync/semaphore"
@@ -174,6 +175,7 @@ func (c *Client) fetch(ctx context.Context, rCtx *RemoteContext, ref string, lim
 			convertibleHandler,
 			childrenHandler,
 			appendDistSrcLabelHandler,
+			snhandler.PrepareSnapshotsByImage(c.SnapshotService(rCtx.Snapshotter), store, fetcher, ref),
 		)
 
 		handler = images.Handlers(handlers...)
