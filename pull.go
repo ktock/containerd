@@ -25,6 +25,7 @@ import (
 	"github.com/containerd/containerd/remotes"
 	"github.com/containerd/containerd/remotes/docker"
 	"github.com/containerd/containerd/remotes/docker/schema1"
+	"github.com/containerd/containerd/snapshots"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
 	"golang.org/x/sync/semaphore"
@@ -79,9 +80,9 @@ func (c *Client) Pull(ctx context.Context, ref string, opts ...RemoteOpt) (_ Ima
 		wrapper := pullCtx.HandlerWrapper
 		pullCtx.HandlerWrapper = func(h images.Handler) images.Handler {
 			if wrapper == nil {
-				return unpackWrapper(h)
+				return unpackWrapper(snapshots.AppendImageInfoHandlerWrapper(h, ref))
 			}
-			return wrapper(unpackWrapper(h))
+			return wrapper(unpackWrapper(snapshots.AppendImageInfoHandlerWrapper(h, ref)))
 		}
 	}
 

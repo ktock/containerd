@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -113,9 +114,12 @@ EachLayer:
 			return errors.Wrapf(err, "failed to stat snapshot %s", chainID)
 		}
 
-		labelOpt := snapshots.WithLabels(map[string]string{
-			"containerd.io/snapshot.ref": chainID,
-		})
+		inheritedLabels := filterInheritedAnnotations(desc.Annotations)
+		if inheritedLabels == nil {
+			inheritedLabels = make(map[string]string)
+		}
+		inheritedLabels["containerd.io/snapshot.ref"] = chainID
+		labelOpt := snapshots.WithLabels(inheritedLabels)
 
 		var (
 			key    string
@@ -320,4 +324,21 @@ func uniquePart() string {
 	// Ignore read failures, just decreases uniqueness
 	rand.Read(b[:])
 	return fmt.Sprintf("%d-%s", t.Nanosecond(), base64.URLEncoding.EncodeToString(b[:]))
+}
+
+// filterInheritedAnnotations filters the provided annotations by removing any
+// key which isn't a snapshot label. Snapshot labels have a prefix of
+// "containerd.io/snapshot/".
+func filterInheritedAnnotations(annotations map[string]string) map[string]string {
+	if annotations == nil {
+		return nil
+	}
+
+	filtered := make(map[string]string)
+	for k, v := range annotations {
+		if strings.HasPrefix(k, "containerd.io/snapshot/") {
+			filtered[k] = v
+		}
+	}
+	return filtered
 }
