@@ -108,6 +108,10 @@ type FetchConfig struct {
 	Platforms []string
 	// Whether or not download all metadata
 	AllMetadata bool
+	// Whether or not unpack layers(multiplatform isn't supported)
+	Unpack bool
+	// Snapshotter
+	Snapshotter string
 }
 
 // NewFetchConfig returns the default FetchConfig from cli flags
@@ -138,6 +142,8 @@ func NewFetchConfig(ctx context.Context, clicontext *cli.Context) (*FetchConfig,
 	} else if clicontext.Bool("all-metadata") {
 		config.AllMetadata = true
 	}
+
+	config.Snapshotter = clicontext.String("snapshotter")
 
 	return config, nil
 }
@@ -185,10 +191,28 @@ func Fetch(ctx context.Context, client *containerd.Client, ref string, config *F
 		}
 	}
 
-	img, err := client.Fetch(pctx, ref, opts...)
-	stopProgress()
-	if err != nil {
-		return images.Image{}, err
+	var img images.Image
+	if config.Unpack {
+		opts = append(opts, containerd.WithPullUnpack)
+		if len(config.Platforms) > 1 {
+			return images.Image{}, fmt.Errorf("cannot pull multiplatform image locally")
+		}
+		if config.Snapshotter != "" {
+			opts = append(opts, containerd.WithPullSnapshotter(config.Snapshotter))
+		}
+		i, err := client.Pull(pctx, ref, opts...)
+		stopProgress()
+		if err != nil {
+			return images.Image{}, err
+		}
+		img = i.Metadata()
+	} else {
+		var err error
+		img, err = client.Fetch(pctx, ref, opts...)
+		stopProgress()
+		if err != nil {
+			return images.Image{}, err
+		}
 	}
 
 	<-progress

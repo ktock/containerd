@@ -83,6 +83,17 @@ command. As part of this process, we do the following:
 			return err
 		}
 
+		if config.PlatformMatcher != nil || len(config.Platforms) <= 1 {
+			// This isn't multiplatform so we can use Pull(fetch+unpack) here.
+			config.Unpack = true
+			_, err = content.Fetch(ctx, client, ref, config)
+			if err != nil {
+				return err
+			}
+			fmt.Println("done fetching and unpacking")
+			return nil
+		}
+
 		img, err := content.Fetch(ctx, client, ref, config)
 		if err != nil {
 			return err
