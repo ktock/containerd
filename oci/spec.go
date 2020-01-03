@@ -153,13 +153,13 @@ func populateDefaultUnixSpec(ctx context.Context, s *Spec, id string) error {
 				Inheritable: defaultUnixCaps(),
 				Effective:   defaultUnixCaps(),
 			},
-			Rlimits: []specs.POSIXRlimit{
-				{
-					Type: "RLIMIT_NOFILE",
-					Hard: uint64(1024),
-					Soft: uint64(1024),
-				},
-			},
+			// Rlimits: []specs.POSIXRlimit{
+			// 	{
+			// 		Type: "RLIMIT_NOFILE",
+			// 		Hard: uint64(1024),
+			// 		Soft: uint64(1024),
+			// 	},
+			// },
 		},
 		Mounts: []specs.Mount{
 			{
@@ -198,12 +198,12 @@ func populateDefaultUnixSpec(ctx context.Context, s *Spec, id string) error {
 				Source:      "sysfs",
 				Options:     []string{"nosuid", "noexec", "nodev", "ro"},
 			},
-			{
-				Destination: "/run",
-				Type:        "tmpfs",
-				Source:      "tmpfs",
-				Options:     []string{"nosuid", "strictatime", "mode=755", "size=65536k"},
-			},
+			// {
+			// 	Destination: "/run",
+			// 	Type:        "tmpfs",
+			// 	Source:      "tmpfs",
+			// 	Options:     []string{"nosuid", "strictatime", "mode=755", "size=65536k"},
+			// },
 		},
 		Linux: &specs.Linux{
 			MaskedPaths: []string{
