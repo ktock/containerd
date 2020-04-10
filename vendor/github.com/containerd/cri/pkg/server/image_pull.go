@@ -120,7 +120,7 @@ func (c *criService) PullImage(ctx context.Context, r *runtime.PullImageRequest)
 	}
 
 	pullOpts = append(pullOpts, c.encryptedImagesPullOpts()...)
-	if !c.config.ContainerdConfig.DisableSnapshotAnnotation {
+	if !c.config.ContainerdConfig.DisableSnapshotAnnotations {
 		pullOpts = append(pullOpts,
 			containerd.WithImageHandlerWrapper(appendInfoHandlerWrapper(ref)))
 	}

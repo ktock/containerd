@@ -74,10 +74,10 @@ type ContainerdConfig struct {
 	// This only works for runtime type "io.containerd.runtime.v1.linux".
 	NoPivot bool `toml:"no_pivot" json:"noPivot"`
 
-	// DisableSnapshotAnnotation disables to pass additional annotations (image
+	// DisableSnapshotAnnotations disables to pass additional annotations (image
 	// related information) to snapshotters. These annotations are required by
 	// stargz snapshotter (https://github.com/containerd/stargz-snapshotter).
- 	DisableSnapshotAnnotation bool `toml:"disable_snapshot_annotation" json:"disableSnapshotAnnotation"`
+	DisableSnapshotAnnotations bool `toml:"disable_snapshot_annotations" json:"disableSnapshotAnnotations"`
 }
 
 // CniConfig contains toml config related to cni
