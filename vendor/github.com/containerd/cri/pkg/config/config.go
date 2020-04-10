@@ -73,6 +73,11 @@ type ContainerdConfig struct {
 	// NoPivot disables pivot-root (linux only), required when running a container in a RamDisk with runc
 	// This only works for runtime type "io.containerd.runtime.v1.linux".
 	NoPivot bool `toml:"no_pivot" json:"noPivot"`
+
+	// DisableSnapshotAnnotation disables to pass additional annotations (image
+	// related information) to snapshotters. These annotations are required by
+	// stargz snapshotter (https://github.com/containerd/stargz-snapshotter).
+ 	DisableSnapshotAnnotation bool `toml:"disable_snapshot_annotation" json:"disableSnapshotAnnotation"`
 }
 
 // CniConfig contains toml config related to cni
