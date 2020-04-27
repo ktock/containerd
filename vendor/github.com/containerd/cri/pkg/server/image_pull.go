@@ -1,17 +1,17 @@
 /*
-Copyright 2017 The Kubernetes Authors.
+   Copyright The containerd Authors.
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+       http://www.apache.org/licenses/LICENSE-2.0
 
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
 */
 
 package server
@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
+	"fmt"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -370,6 +371,19 @@ func defaultScheme(host string) string {
 	return "https"
 }
 
+// addDefaultScheme returns the endpoint with default scheme
+func addDefaultScheme(endpoint string) (string, error) {
+	if strings.Contains(endpoint, "://") {
+		return endpoint, nil
+	}
+	ue := "dummy://" + endpoint
+	u, err := url.Parse(ue)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%s://%s", defaultScheme(u.Host), endpoint), nil
+}
+
 // registryEndpoints returns endpoints for a given host.
 // It adds default registry endpoint if it does not exist in the passed-in endpoint list.
 // It also supports wildcard host matching with `*`.
@@ -384,6 +398,13 @@ func (c *criService) registryEndpoints(host string) ([]string, error) {
 	defaultHost, err := docker.DefaultHost(host)
 	if err != nil {
 		return nil, errors.Wrap(err, "get default host")
+	}
+	for i := range endpoints {
+		en, err := addDefaultScheme(endpoints[i])
+		if err != nil {
+			return nil, errors.Wrap(err, "parse endpoint url")
+		}
+		endpoints[i] = en
 	}
 	for _, e := range endpoints {
 		u, err := url.Parse(e)
@@ -434,6 +455,12 @@ const (
 	// targetDigestLabel is a label which contains layer digest and will be passed
 	// to snapshotters.
 	targetDigestLabel = "containerd.io/snapshot/cri.layer-digest"
+	// targetImageChainLabel is a label which contains OCI-defined `chain`
+	// constructed by all layers in the target image. Layers are sparated by " "
+	// and `ChainID` can be calculated by recursively digesting these layers.
+	// See also: https://github.com/opencontainers/image-spec/blob/e562b04403929d582d449ae5386ff79dd7961a11/config.md#layer-chainid
+	// This label will be passed to snapshotters for preparing layers in parallel.
+	targetImageChainLabel = "containerd.io/snapshot/cri.image-chain"
 )
 
 // appendInfoHandlerWrapper makes a handler which appends some basic information
@@ -450,6 +477,15 @@ func appendInfoHandlerWrapper(ref string) func(f containerdimages.Handler) conta
 			}
 			switch desc.MediaType {
 			case imagespec.MediaTypeImageManifest, containerdimages.MediaTypeDockerSchema2Manifest:
+				var chain string
+				for _, c := range children {
+					if containerdimages.IsLayerType(c.MediaType) {
+						chain += fmt.Sprintf("%s ", c.Digest.String())
+					}
+				}
+				if len(chain) >= 1 {
+					chain = chain[:len(chain)-1]
+				}
 				for i := range children {
 					c := &children[i]
 					if containerdimages.IsLayerType(c.MediaType) {
@@ -458,6 +494,7 @@ func appendInfoHandlerWrapper(ref string) func(f containerdimages.Handler) conta
 						}
 						c.Annotations[targetRefLabel] = ref
 						c.Annotations[targetDigestLabel] = c.Digest.String()
+						c.Annotations[targetImageChainLabel] = chain
 					}
 				}
 			}
