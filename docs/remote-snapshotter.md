@@ -14,7 +14,7 @@ This enables containerd to lazily pull images from standard-compliant registries
 The containerd client's `Pull` API with unpacking-mode always attempts to query remote snapshots to the underlying snapshotter.
 Remote snapshotter needs to be plugged into containerd in [the same ways as normal snapshotters](/PLUGINS.md).
 
-```
+```go
 image, err := client.Pull(ctx, ref,
 	containerd.WithPullUnpack,
 	containerd.WithPullSnapshotter("my-remote-snapshotter"),
@@ -25,19 +25,19 @@ image, err := client.Pull(ctx, ref,
 
 Some remote snapshotters requires snapshotter-specific information through `Pull` API.
 The information will be used in various ways including searching snapshot contents from remote store.
-One of the example snapshotters that requires these information is Stargz Snapshotter.
+One of the example snapshotters that requires these information is stargz snapshotter.
 It requires the image reference name and layer digests, etc. for searching layer contents from registries.
 
 The containerd client supports two ways to pass snapshotter-specific information to the underlying snapshotter.
 
 ### Using snapshotter's `WithLabels` option
 
-Snapshotter-specific information can be passed as snapshot labels using snapshotter option `WithLabels`
+Snapshotter-specific information can be passed as snapshot labels using snapshotter option `WithLabels`.
 Specified labels will be passed to the underlying snapshotter every time the containerd client queries a remote snapshot.
 This is useful if the values of these labels are determined statically regardless of the snapshots.
 Labels must be prefixed by `containerd.io/snapshot/`.
 
-```
+```go
 import "github.com/containerd/containerd/snapshots"
 
 image, err := client.Pull(ctx, ref,
@@ -59,8 +59,9 @@ This is useful when the information varies depending on the snapshot.
 Every time the containerd client queries remote snapshot, it passes `Annotations` appended to the targeting layer descriptor (means the layer descriptor that will be pulled and unpacked for preparing that snapshot) to the underlying snapshotter.
 The values of annotations can be dynamically added and modified in the handler wrapper.
 Note that annotations must be prefixed by `containerd.io/snapshot/`.
+[CRI plugin](https://github.com/containerd/cri/blob/09d6426f33cac217528158ddc6d254ca7d597a7b/pkg/server/image_pull.go#L127) and [stargz snapshotter](https://github.com/containerd/stargz-snapshotter/blob/875ec333403a885f5b6e5b64c94ec4dc713e0596/cmd/ctr-remote/commands/rpull.go#L97) levelage this method.
 
-```
+```go
 import "github.com/ktock/snapshotter/handler"
 
 if _, err := client.Pull(ctx, ref,
@@ -80,7 +81,7 @@ During image pull, the containerd client calls `Prepare` API with label `contain
 This label contains ChainID that targets a committed snapshot that the client is trying to prepare.
 At this moment, snapshotter-specific information provided by the user will also be merged into the labels option.
 
-```golang
+```go
 // Gets annotations appended to the targetting layer which would contain
 // snapshotter-specific information passed by the user.
 labels := snapshots.FilterInheritedLabels(desc.Annotations)
@@ -105,7 +106,7 @@ When remote snapshotter allows the user to use that snapshot, it must return `Er
 If the containerd client gets `ErrAlreadyExists` by `Prepare`, it ensures the existence of that committed snapshot by calling `Stat` with the ChainID.
 If this snapshot is available, the containerd client skips pulling and unpacking layer that would otherwise be needed for preparing and committing that snapshot.
 
-```golang
+```go
 mounts, err = sn.Prepare(ctx, key, parent.String(), opts...)
 if err != nil {
 	if errdefs.IsAlreadyExists(err) {
