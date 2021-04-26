@@ -136,16 +136,18 @@ func (c *defaultConverter) convertManifest(ctx context.Context, cs content.Store
 	for i, l := range manifest.Layers {
 		i := i
 		l := l
-		oldDiffID, err := images.GetDiffID(ctx, cs, l)
-		if err != nil {
-			return nil, err
-		}
 		eg.Go(func() error {
+			oldDgst, oldMT := l.Digest, l.MediaType
 			newL, err := c.convert(ctx2, cs, l)
 			if err != nil {
 				return err
 			}
 			if newL != nil {
+				// old "l" may be modified during conversion. We should not use that here.
+				oldDiffID, err := images.GetDiffIDFromDigest(ctx, cs, oldDgst, oldMT)
+				if err != nil {
+					return err
+				}
 				mu.Lock()
 				// update GC labels
 				ClearGCLabels(labels, l.Digest)

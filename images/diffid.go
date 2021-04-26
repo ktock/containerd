@@ -30,6 +30,11 @@ import (
 
 // GetDiffID gets the diff ID of the layer blob descriptor.
 func GetDiffID(ctx context.Context, cs content.Store, desc ocispec.Descriptor) (digest.Digest, error) {
+	return GetDiffID(ctx, cs, desc.Digest, desc.MediaType)
+}
+
+// GetDiffIDFromDigest gets the diff ID of the layer from the digest.
+func GetDiffIDFromDigest(ctx context.Context, cs content.Store, dgst digest.Digest, mediaType string) (digest.Digest, error) {
 	switch desc.MediaType {
 	case
 		// If the layer is already uncompressed, we can just return its digest
