@@ -20,5 +20,5 @@
 package diff
 
 var defaultDifferConfig = &config{
-	Order: []string{"walking"},
+	Order: []string{"overlay"},
 }
