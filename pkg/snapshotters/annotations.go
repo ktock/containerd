@@ -1,0 +1,79 @@
+package snapshotters
+
+import (
+	"context"
+
+	containerdimages "github.com/containerd/containerd/images"
+	"github.com/containerd/containerd/labels"
+	"github.com/containerd/containerd/log"
+	imagespec "github.com/opencontainers/image-spec/specs-go/v1"
+)
+
+const (
+	// TargetRefLabel is a label which contains image reference and will be passed
+	// to snapshotters.
+	TargetRefLabel = "containerd.io/snapshot/cri.image-ref"
+	// TargetManifestDigestLabel is a label which contains manifest digest and will be passed
+	// to snapshotters.
+	TargetManifestDigestLabel = "containerd.io/snapshot/cri.manifest-digest"
+	// TargetLayerDigestLabel is a label which contains layer digest and will be passed
+	// to snapshotters.
+	TargetLayerDigestLabel = "containerd.io/snapshot/cri.layer-digest"
+	// TargetImageLayersLabel is a label which contains layer digests contained in
+	// the target image and will be passed to snapshotters for preparing layers in
+	// parallel. Skipping some layers is allowed and only affects performance.
+	TargetImageLayersLabel = "containerd.io/snapshot/cri.image-layers"
+)
+
+// AppendInfoHandlerWrapper makes a handler which appends some basic information
+// of images like digests for manifest and their child layers as annotations during unpack.
+// These annotations will be passed to snapshotters as labels. These labels will be
+// used mainly by remote snapshotters for querying image contents from the remote location.
+func AppendInfoHandlerWrapper(ref string) func(f containerdimages.Handler) containerdimages.Handler {
+	return func(f containerdimages.Handler) containerdimages.Handler {
+		return containerdimages.HandlerFunc(func(ctx context.Context, desc imagespec.Descriptor) ([]imagespec.Descriptor, error) {
+			children, err := f.Handle(ctx, desc)
+			if err != nil {
+				return nil, err
+			}
+			switch desc.MediaType {
+			case imagespec.MediaTypeImageManifest, containerdimages.MediaTypeDockerSchema2Manifest:
+				for i := range children {
+					c := &children[i]
+					if containerdimages.IsLayerType(c.MediaType) {
+						if c.Annotations == nil {
+							c.Annotations = make(map[string]string)
+						}
+						c.Annotations[TargetRefLabel] = ref
+						c.Annotations[TargetLayerDigestLabel] = c.Digest.String()
+						c.Annotations[TargetImageLayersLabel] = getLayers(ctx, TargetImageLayersLabel, children[i:], labels.Validate)
+						c.Annotations[TargetManifestDigestLabel] = desc.Digest.String()
+					}
+				}
+			}
+			return children, nil
+		})
+	}
+}
+
+// getLayers returns comma-separated digests based on the passed list of
+// descriptors. The returned list contains as many digests as possible as well
+// as meets the label validation.
+func getLayers(ctx context.Context, key string, descs []imagespec.Descriptor, validate func(k, v string) error) (layers string) {
+	var item string
+	for _, l := range descs {
+		if containerdimages.IsLayerType(l.MediaType) {
+			item = l.Digest.String()
+			if layers != "" {
+				item = "," + item
+			}
+			// This avoids the label hits the size limitation.
+			if err := validate(key, layers+item); err != nil {
+				log.G(ctx).WithError(err).WithField("label", key).Debugf("%q is omitted in the layers list", l.Digest.String())
+				break
+			}
+			layers += item
+		}
+	}
+	return
+}
