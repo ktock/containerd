@@ -1,4 +1,4 @@
-//go:build !windows && !darwin && !openbsd
+//go:build !windows && !darwin && !openbsd && !wasip1
 
 /*
    Copyright The containerd Authors.

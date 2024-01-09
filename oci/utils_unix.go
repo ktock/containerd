@@ -26,7 +26,7 @@ import (
 
 	"github.com/containerd/containerd/pkg/userns"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
-	"golang.org/x/sys/unix"
+	// "golang.org/x/sys/unix"
 )
 
 // ErrNotADevice denotes that a file is not a valid linux device.
@@ -135,46 +135,47 @@ const (
 // DeviceFromPath takes the path to a device to look up the information about a
 // linux device and returns that information as a LinuxDevice struct.
 func DeviceFromPath(path string) (*specs.LinuxDevice, error) {
-	if overrideDeviceFromPath != nil {
-		if err := overrideDeviceFromPath(path); err != nil {
-			return nil, err
-		}
-	}
+	return nil, fmt.Errorf("unsupported")
+	// if overrideDeviceFromPath != nil {
+	// 	if err := overrideDeviceFromPath(path); err != nil {
+	// 		return nil, err
+	// 	}
+	// }
 
-	var stat unix.Stat_t
-	if err := unix.Lstat(path, &stat); err != nil {
-		return nil, err
-	}
+	// var stat unix.Stat_t
+	// if err := unix.Lstat(path, &stat); err != nil {
+	// 	return nil, err
+	// }
 
-	var (
-		devNumber = uint64(stat.Rdev) //nolint:nolintlint,unconvert // the type is 32bit on mips.
-		major     = unix.Major(devNumber)
-		minor     = unix.Minor(devNumber)
-	)
+	// var (
+	// 	devNumber = uint64(stat.Rdev) //nolint:nolintlint,unconvert // the type is 32bit on mips.
+	// 	major     = unix.Major(devNumber)
+	// 	minor     = unix.Minor(devNumber)
+	// )
 
-	var (
-		devType string
-		mode    = stat.Mode
-	)
+	// var (
+	// 	devType string
+	// 	mode    = stat.Mode
+	// )
 
-	switch mode & unix.S_IFMT {
-	case unix.S_IFBLK:
-		devType = blockDevice
-	case unix.S_IFCHR:
-		devType = charDevice
-	case unix.S_IFIFO:
-		devType = fifoDevice
-	default:
-		return nil, ErrNotADevice
-	}
-	fm := os.FileMode(mode &^ unix.S_IFMT)
-	return &specs.LinuxDevice{
-		Type:     devType,
-		Path:     path,
-		Major:    int64(major),
-		Minor:    int64(minor),
-		FileMode: &fm,
-		UID:      &stat.Uid,
-		GID:      &stat.Gid,
-	}, nil
+	// switch mode & unix.S_IFMT {
+	// case unix.S_IFBLK:
+	// 	devType = blockDevice
+	// case unix.S_IFCHR:
+	// 	devType = charDevice
+	// case unix.S_IFIFO:
+	// 	devType = fifoDevice
+	// default:
+	// 	return nil, ErrNotADevice
+	// }
+	// fm := os.FileMode(mode &^ unix.S_IFMT)
+	// return &specs.LinuxDevice{
+	// 	Type:     devType,
+	// 	Path:     path,
+	// 	Major:    int64(major),
+	// 	Minor:    int64(minor),
+	// 	FileMode: &fm,
+	// 	UID:      &stat.Uid,
+	// 	GID:      &stat.Gid,
+	// }, nil
 }

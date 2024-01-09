@@ -34,7 +34,7 @@ import (
 	"github.com/containerd/containerd/mount"
 	"github.com/containerd/containerd/namespaces"
 	"github.com/containerd/containerd/platforms"
-	"github.com/containerd/continuity/fs"
+	// "github.com/containerd/continuity/fs"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/opencontainers/runc/libcontainer/user"
 	"github.com/opencontainers/runtime-spec/specs-go"
@@ -889,64 +889,65 @@ func WithAdditionalGIDs(userstr string) SpecOpts {
 // The passed in groups can be either a gid or a groupname.
 func WithAppendAdditionalGroups(groups ...string) SpecOpts {
 	return func(ctx context.Context, client Client, c *containers.Container, s *Spec) (err error) {
-		// For LCOW or on Darwin additional GID's are not supported
-		if s.Windows != nil || runtime.GOOS == "darwin" {
-			return nil
-		}
-		setProcess(s)
-		setAdditionalGids := func(root string) error {
-			defer ensureAdditionalGids(s)
-			gpath, err := fs.RootPath(root, "/etc/group")
-			if err != nil {
-				return err
-			}
-			ugroups, err := user.ParseGroupFile(gpath)
-			if err != nil {
-				return err
-			}
-			groupMap := make(map[string]user.Group)
-			for _, group := range ugroups {
-				groupMap[group.Name] = group
-			}
-			var gids []uint32
-			for _, group := range groups {
-				gid, err := strconv.ParseUint(group, 10, 32)
-				if err == nil {
-					gids = append(gids, uint32(gid))
-				} else {
-					g, ok := groupMap[group]
-					if !ok {
-						return fmt.Errorf("unable to find group %s", group)
-					}
-					gids = append(gids, uint32(g.Gid))
-				}
-			}
-			s.Process.User.AdditionalGids = append(s.Process.User.AdditionalGids, gids...)
-			return nil
-		}
-		if c.Snapshotter == "" && c.SnapshotKey == "" {
-			if !filepath.IsAbs(s.Root.Path) {
-				return errors.New("rootfs absolute path is required")
-			}
-			return setAdditionalGids(s.Root.Path)
-		}
-		if c.Snapshotter == "" {
-			return errors.New("no snapshotter set for container")
-		}
-		if c.SnapshotKey == "" {
-			return errors.New("rootfs snapshot not created for container")
-		}
-		snapshotter := client.SnapshotService(c.Snapshotter)
-		mounts, err := snapshotter.Mounts(ctx, c.SnapshotKey)
-		if err != nil {
-			return err
-		}
+		return fmt.Errorf("unsupported")
+		// // For LCOW or on Darwin additional GID's are not supported
+		// if s.Windows != nil || runtime.GOOS == "darwin" {
+		// 	return nil
+		// }
+		// setProcess(s)
+		// setAdditionalGids := func(root string) error {
+		// 	defer ensureAdditionalGids(s)
+		// 	gpath, err := fs.RootPath(root, "/etc/group")
+		// 	if err != nil {
+		// 		return err
+		// 	}
+		// 	ugroups, err := user.ParseGroupFile(gpath)
+		// 	if err != nil {
+		// 		return err
+		// 	}
+		// 	groupMap := make(map[string]user.Group)
+		// 	for _, group := range ugroups {
+		// 		groupMap[group.Name] = group
+		// 	}
+		// 	var gids []uint32
+		// 	for _, group := range groups {
+		// 		gid, err := strconv.ParseUint(group, 10, 32)
+		// 		if err == nil {
+		// 			gids = append(gids, uint32(gid))
+		// 		} else {
+		// 			g, ok := groupMap[group]
+		// 			if !ok {
+		// 				return fmt.Errorf("unable to find group %s", group)
+		// 			}
+		// 			gids = append(gids, uint32(g.Gid))
+		// 		}
+		// 	}
+		// 	s.Process.User.AdditionalGids = append(s.Process.User.AdditionalGids, gids...)
+		// 	return nil
+		// }
+		// if c.Snapshotter == "" && c.SnapshotKey == "" {
+		// 	if !filepath.IsAbs(s.Root.Path) {
+		// 		return errors.New("rootfs absolute path is required")
+		// 	}
+		// 	return setAdditionalGids(s.Root.Path)
+		// }
+		// if c.Snapshotter == "" {
+		// 	return errors.New("no snapshotter set for container")
+		// }
+		// if c.SnapshotKey == "" {
+		// 	return errors.New("rootfs snapshot not created for container")
+		// }
+		// snapshotter := client.SnapshotService(c.Snapshotter)
+		// mounts, err := snapshotter.Mounts(ctx, c.SnapshotKey)
+		// if err != nil {
+		// 	return err
+		// }
 
-		// Use a read-only mount when trying to get user/group information
-		// from the container's rootfs. Since the option does read operation
-		// only, we append ReadOnly mount option to prevent the Linux kernel
-		// from syncing whole filesystem in umount syscall.
-		return mount.WithReadonlyTempMount(ctx, mounts, setAdditionalGids)
+		// // Use a read-only mount when trying to get user/group information
+		// // from the container's rootfs. Since the option does read operation
+		// // only, we append ReadOnly mount option to prevent the Linux kernel
+		// // from syncing whole filesystem in umount syscall.
+		// return mount.WithReadonlyTempMount(ctx, mounts, setAdditionalGids)
 	}
 }
 
@@ -1037,18 +1038,19 @@ var ErrNoUsersFound = errors.New("no users found")
 // UserFromPath inspects the user object using /etc/passwd in the specified rootfs.
 // filter can be nil.
 func UserFromPath(root string, filter func(user.User) bool) (user.User, error) {
-	ppath, err := fs.RootPath(root, "/etc/passwd")
-	if err != nil {
-		return user.User{}, err
-	}
-	users, err := user.ParsePasswdFileFilter(ppath, filter)
-	if err != nil {
-		return user.User{}, err
-	}
-	if len(users) == 0 {
-		return user.User{}, ErrNoUsersFound
-	}
-	return users[0], nil
+	return user.User{}, fmt.Errorf("unsupported")
+	// ppath, err := fs.RootPath(root, "/etc/passwd")
+	// if err != nil {
+	// 	return user.User{}, err
+	// }
+	// users, err := user.ParsePasswdFileFilter(ppath, filter)
+	// if err != nil {
+	// 	return user.User{}, err
+	// }
+	// if len(users) == 0 {
+	// 	return user.User{}, ErrNoUsersFound
+	// }
+	// return users[0], nil
 }
 
 // ErrNoGroupsFound can be returned from GIDFromPath
@@ -1057,39 +1059,41 @@ var ErrNoGroupsFound = errors.New("no groups found")
 // GIDFromPath inspects the GID using /etc/group in the specified rootfs.
 // filter can be nil.
 func GIDFromPath(root string, filter func(user.Group) bool) (gid uint32, err error) {
-	gpath, err := fs.RootPath(root, "/etc/group")
-	if err != nil {
-		return 0, err
-	}
-	groups, err := user.ParseGroupFileFilter(gpath, filter)
-	if err != nil {
-		return 0, err
-	}
-	if len(groups) == 0 {
-		return 0, ErrNoGroupsFound
-	}
-	g := groups[0]
-	return uint32(g.Gid), nil
+	return 0, fmt.Errorf("unsupported")
+	// gpath, err := fs.RootPath(root, "/etc/group")
+	// if err != nil {
+	// 	return 0, err
+	// }
+	// groups, err := user.ParseGroupFileFilter(gpath, filter)
+	// if err != nil {
+	// 	return 0, err
+	// }
+	// if len(groups) == 0 {
+	// 	return 0, ErrNoGroupsFound
+	// }
+	// g := groups[0]
+	// return uint32(g.Gid), nil
 }
 
 func getSupplementalGroupsFromPath(root string, filter func(user.Group) bool) ([]uint32, error) {
-	gpath, err := fs.RootPath(root, "/etc/group")
-	if err != nil {
-		return []uint32{}, err
-	}
-	groups, err := user.ParseGroupFileFilter(gpath, filter)
-	if err != nil {
-		return []uint32{}, err
-	}
-	if len(groups) == 0 {
-		// if there are no additional groups; just return an empty set
-		return []uint32{}, nil
-	}
-	addlGids := []uint32{}
-	for _, grp := range groups {
-		addlGids = append(addlGids, uint32(grp.Gid))
-	}
-	return addlGids, nil
+	return nil, fmt.Errorf("unsupported")
+	// gpath, err := fs.RootPath(root, "/etc/group")
+	// if err != nil {
+	// 	return []uint32{}, err
+	// }
+	// groups, err := user.ParseGroupFileFilter(gpath, filter)
+	// if err != nil {
+	// 	return []uint32{}, err
+	// }
+	// if len(groups) == 0 {
+	// 	// if there are no additional groups; just return an empty set
+	// 	return []uint32{}, nil
+	// }
+	// addlGids := []uint32{}
+	// for _, grp := range groups {
+	// 	addlGids = append(addlGids, uint32(grp.Gid))
+	// }
+	// return addlGids, nil
 }
 
 func isRootfsAbs(root string) bool {

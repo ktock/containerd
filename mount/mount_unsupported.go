@@ -1,4 +1,4 @@
-//go:build darwin || openbsd
+//go:build darwin || openbsd || wasip1
 
 /*
    Copyright The containerd Authors.

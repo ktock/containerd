@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/containerd/continuity/fs"
+	// "github.com/containerd/continuity/fs"
 )
 
 // Mount is the lingua franca of containerd. A mount represents a
@@ -53,19 +53,20 @@ func All(mounts []Mount, target string) error {
 // UnmountMounts unmounts all the mounts under a target in the reverse order of
 // the mounts array provided.
 func UnmountMounts(mounts []Mount, target string, flags int) error {
-	for i := len(mounts) - 1; i >= 0; i-- {
-		mountpoint, err := fs.RootPath(target, mounts[i].Target)
-		if err != nil {
-			return err
-		}
+	return fmt.Errorf("unsupported")
+	// for i := len(mounts) - 1; i >= 0; i-- {
+	// 	mountpoint, err := fs.RootPath(target, mounts[i].Target)
+	// 	if err != nil {
+	// 		return err
+	// 	}
 
-		if err := UnmountAll(mountpoint, flags); err != nil {
-			if i == len(mounts)-1 { // last mount
-				return err
-			}
-		}
-	}
-	return nil
+	// 	if err := UnmountAll(mountpoint, flags); err != nil {
+	// 		if i == len(mounts)-1 { // last mount
+	// 			return err
+	// 		}
+	// 	}
+	// }
+	// return nil
 }
 
 // ReadOnly returns a boolean value indicating whether this mount has the "ro"
@@ -81,11 +82,12 @@ func (m *Mount) ReadOnly() bool {
 
 // Mount to the provided target path.
 func (m *Mount) Mount(target string) error {
-	target, err := fs.RootPath(target, m.Target)
-	if err != nil {
-		return fmt.Errorf("failed to join path %q with root %q: %w", m.Target, target, err)
-	}
-	return m.mount(target)
+	return fmt.Errorf("unsupported")
+	// target, err := fs.RootPath(target, m.Target)
+	// if err != nil {
+	// 	return fmt.Errorf("failed to join path %q with root %q: %w", m.Target, target, err)
+	// }
+	// return m.mount(target)
 }
 
 // readonlyMounts modifies the received mount options
