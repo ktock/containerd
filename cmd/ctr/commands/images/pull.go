@@ -83,6 +83,10 @@ command. As part of this process, we do the following:
 			Name:  "local",
 			Usage: "Fetch content from local client rather than using transfer service",
 		},
+		&cli.BoolFlag{
+			Name:  "remote-snapshotter-annotations",
+			Usage: "Propagate image information to snapshotters as image annotations",
+		},
 	),
 	Action: func(context *cli.Context) error {
 		var (
@@ -130,6 +134,10 @@ command. As part of this process, we do the following:
 				// config.PlatformMatcher = platforms.Any()
 			} else if !context.Bool("skip-metadata") {
 				sopts = append(sopts, image.WithAllMetadata)
+			}
+
+			if context.Bool("remote-snapshotter-annotations") {
+				sopts = append(sopts, image.WithEnableRemoteSnapshotAnntations)
 			}
 
 			reg := registry.NewOCIRegistry(ref, nil, ch)

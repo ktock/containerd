@@ -116,6 +116,19 @@ func (r *OCIRegistry) Fetcher(ctx context.Context, ref string) (transfer.Fetcher
 	return r.resolver.Fetcher(ctx, ref)
 }
 
+func (r *OCIRegistry) GetCredentials(ctx context.Context, ref, host string) (transfer.Credentials, error) {
+	creds, err := r.creds.GetCredentials(ctx, ref, host)
+	if err != nil {
+		return transfer.Credentials{}, err
+	}
+	return transfer.Credentials{
+		Host:     creds.Host,
+		Username: creds.Username,
+		Secret:   creds.Secret,
+		Header:   creds.Header,
+	}, nil
+}
+
 func (r *OCIRegistry) Pusher(ctx context.Context, desc ocispec.Descriptor) (transfer.Pusher, error) {
 	var ref = r.reference
 	// Annotate ref with digest to push only push tag for single digest

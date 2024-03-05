@@ -18,17 +18,25 @@ package local
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
+	"time"
 
+	transfertypes "github.com/containerd/containerd/v2/api/types/transfer"
 	"github.com/containerd/containerd/v2/core/content"
 	"github.com/containerd/containerd/v2/core/images"
 	"github.com/containerd/containerd/v2/core/remotes"
 	"github.com/containerd/containerd/v2/core/remotes/docker"
+	"github.com/containerd/containerd/v2/core/streaming"
 	"github.com/containerd/containerd/v2/core/transfer"
+	tstreaming "github.com/containerd/containerd/v2/core/transfer/streaming"
 	"github.com/containerd/containerd/v2/core/unpack"
 	"github.com/containerd/containerd/v2/defaults"
+	snpkg "github.com/containerd/containerd/v2/pkg/snapshotters"
 	"github.com/containerd/errdefs"
 	"github.com/containerd/log"
+	"github.com/containerd/typeurl/v2"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/sirupsen/logrus"
 )
@@ -203,6 +211,19 @@ func (ts *localTransferService) pull(ctx context.Context, ir transfer.ImageFetch
 			if err != nil {
 				return fmt.Errorf("unable to initialize unpacker: %w", err)
 			}
+			if iu.EnableRemoteSnapshotAnntations() {
+				handler = snpkg.AppendInfoHandlerWrapper(name)(handler)
+				var sid string
+				if ic, ok := ir.(transfer.ImageCredsProvider); ok && tops.StreamManager != nil {
+					sid, err = handleAuthStream(ctx, ic, tops.StreamManager)
+					if err != nil {
+						log.G(ctx).WithError(err).Debug("failed to handle stream auth")
+					}
+				}
+				if sid != "" {
+					handler = snpkg.AppendCredsStreamHandlerWrapper(sid)(handler)
+				}
+			}
 			handler = unpacker.Unpack(handler)
 		}
 	}
@@ -252,6 +273,77 @@ func (ts *localTransferService) pull(ctx context.Context, ir transfer.ImageFetch
 	}
 
 	return nil
+}
+
+func handleAuthStream(ctx context.Context, ic transfer.ImageCredsProvider, sm streaming.StreamGetter) (sid string, _ error) {
+	sid = tstreaming.GenerateID("snapshotter-creds")
+	go func() {
+		var stream streaming.Stream
+		var err error
+		for {
+			stream, err = sm.Get(ctx, sid)
+			if err != nil && !errors.Is(err, errdefs.ErrNotFound) {
+				log.G(ctx).WithError(err).Error("failed to get auth stream")
+				return
+			}
+			if stream != nil {
+				break
+			}
+			time.Sleep(time.Second)
+		}
+		// Check for context cancellation as well
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
+			req, err := stream.Recv()
+			if err != nil {
+				// If not EOF, log error
+				return
+			}
+
+			var s transfertypes.AuthRequest
+			if err := typeurl.UnmarshalTo(req, &s); err != nil {
+				log.G(ctx).WithError(err).Error("failed to unmarshal credential request")
+				continue
+			}
+			creds, err := ic.GetCredentials(ctx, s.Reference, s.Host)
+			if err != nil {
+				log.G(ctx).WithError(err).Error("failed to get credentials")
+				continue
+			}
+			var resp transfertypes.AuthResponse
+			if creds.Header != "" {
+				resp.AuthType = transfertypes.AuthType_HEADER
+				resp.Secret = creds.Header
+			} else if creds.Username != "" {
+				resp.AuthType = transfertypes.AuthType_CREDENTIALS
+				resp.Username = creds.Username
+				resp.Secret = creds.Secret
+			} else {
+				resp.AuthType = transfertypes.AuthType_REFRESH
+				resp.Secret = creds.Secret
+			}
+
+			a, err := typeurl.MarshalAny(&resp)
+			if err != nil {
+				log.G(ctx).WithError(err).Error("failed to marshal credential response")
+				continue
+			}
+
+			if err := stream.Send(a); err != nil {
+				if !errors.Is(err, io.EOF) {
+					log.G(ctx).WithError(err).Error("unexpected send failure")
+				}
+				return
+			}
+		}
+
+	}()
+	return sid, nil
 }
 
 func fetchHandler(ingester content.Ingester, fetcher remotes.Fetcher, pt *ProgressTracker) images.HandlerFunc {

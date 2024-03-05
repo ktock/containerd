@@ -74,6 +74,31 @@ func AppendInfoHandlerWrapper(ref string) func(f images.Handler) images.Handler 
 	}
 }
 
+const TargetCredsStreamLabel = "containerd.io/snapshot/creds-stream"
+
+func AppendCredsStreamHandlerWrapper(sid string) func(f images.Handler) images.Handler {
+	return func(f images.Handler) images.Handler {
+		return images.HandlerFunc(func(ctx context.Context, desc ocispec.Descriptor) ([]ocispec.Descriptor, error) {
+			children, err := f.Handle(ctx, desc)
+			if err != nil {
+				return nil, err
+			}
+			if images.IsManifestType(desc.MediaType) {
+				for i := range children {
+					c := &children[i]
+					if images.IsLayerType(c.MediaType) {
+						if c.Annotations == nil {
+							c.Annotations = make(map[string]string)
+						}
+						c.Annotations[TargetCredsStreamLabel] = sid
+					}
+				}
+			}
+			return children, nil
+		})
+	}
+}
+
 // getLayers returns comma-separated digests based on the passed list of
 // descriptors. The returned list contains as many digests as possible as well
 // as meets the label validation.

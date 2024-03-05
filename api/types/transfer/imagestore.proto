@@ -40,6 +40,8 @@ message ImageStore {
 	// Unpack Configuration, multiple allowed
 
 	repeated UnpackConfiguration unpacks = 10;
+
+	bool EnableRemoteSnapshotAnntations = 11;
 }
 
 message UnpackConfiguration {
